@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tetris Quest RPG</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=DotGothic16&display=swap');
+
+        :root {
+            --bg-color: #1a1a2e;
+            --grid-color: #16213e;
+            --ui-bg: #0f3460;
+            --text-color: #e94560;
+        }
+
+        body {
+            font-family: 'DotGothic16', sans-serif;
+            background-color: var(--bg-color);
+            color: white;
+            touch-action: none; /* Prevent pull-to-refresh on mobile */
+            overflow: hidden;
+        }
+
+        /* Custom Scrollbar for Log */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f3460; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #e94560; 
+            border-radius: 4px;
+        }
+
+        .game-container {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 10px;
+            max-width: 1000px;
+            margin: 0 auto;
+            height: 100vh;
+            padding: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .game-container {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto auto 1fr auto;
+                height: 100vh;
+                overflow-y: auto;
+            }
+            .desktop-only { display: none; }
+        }
+
+        .panel {
+            background: var(--ui-bg);
+            border: 2px solid #4a5568;
+            border-radius: 8px;
+            padding: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        /* Tetris Grid */
+        #tetris-board {
+            border: 4px solid #e94560;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: grid;
+            grid-template-rows: repeat(20, 1fr);
+            grid-template-columns: repeat(10, 1fr);
+            width: 250px;
+            height: 500px;
+            margin: 0 auto;
+        }
+
+        .cell {
+            width: 100%;
+            height: 100%;
+            border: 1px solid rgba(255,255,255,0.1);
+            box-sizing: border-box;
+        }
+
+        /* Block Colors */
+        .block-i { background: cyan; box-shadow: inset 0 0 8px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.4); }
+        .block-j { background: blue; box-shadow: inset 0 0 8px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.4); }
+        .block-l { background: orange; box-shadow: inset 0 0 8px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.4); }
+        .block-o { background: yellow; box-shadow: inset 0 0 8px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.4); }
+        .block-s { background: lime; box-shadow: inset 0 0 8px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.4); }
+        .block-t { background: purple; box-shadow: inset 0 0 8px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.4); }
+        .block-z { background: red; box-shadow: inset 0 0 8px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.4); }
+        .block-ghost { background: rgba(255, 255, 255, 0.1); border: 1px dashed rgba(255,255,255,0.3); }
+
+        /* Animations */
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(3px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+
+        .shake-anim {
+            animation: shake 0.5s;
+            animation-iteration-count: 1;
+        }
+
+        @keyframes damage-float {
+            0% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-50px); }
+        }
+
+        .damage-text {
+            position: absolute;
+            color: #ff0000;
+            font-weight: bold;
+            font-size: 24px;
+            pointer-events: none;
+            animation: damage-float 1s ease-out forwards;
+            text-shadow: 2px 2px 0px #000;
+        }
+        
+        .heal-text {
+            position: absolute;
+            color: #00ff00;
+            font-weight: bold;
+            font-size: 24px;
+            pointer-events: none;
+            animation: damage-float 1s ease-out forwards;
+            text-shadow: 2px 2px 0px #000;
+        }
+
+        /* RPG Bars */
+        .bar-container {
+            background: #333;
+            height: 16px;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 5px;
+            position: relative;
+        }
+        .bar-fill {
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+        .hp-fill { background: #e53e3e; }
+        .mp-fill { background: #3182ce; }
+        .exp-fill { background: #d69e2e; }
+        .enemy-timer-fill { background: #805ad5; }
+
+        /* Mobile Controls */
+        .mobile-controls {
+            display: none;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            padding: 10px;
+            height: 140px;
+        }
+        @media (max-width: 768px) {
+            .mobile-controls { display: grid; }
+        }
+        .ctrl-btn {
+            background: rgba(255,255,255,0.1);
+            border: 2px solid rgba(255,255,255,0.2);
+            border-radius: 10px;
+            color: white;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+        }
+        .ctrl-btn:active { background: rgba(255,255,255,0.3); }
+        
+        /* Enemy Sprite Placeholder */
+        .enemy-sprite {
+            font-size: 80px;
+            text-align: center;
+            filter: drop-shadow(0 0 10px rgba(255,0,0,0.5));
+            transition: transform 0.1s;
+        }
+
+        /* Modal */
+        .modal {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            flex-direction: column;
+        }
+        .modal.hidden { display: none; }
+
+        /* Sound Control */
+        .sound-toggle {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 50;
+            background: rgba(0,0,0,0.5);
+            border: 1px solid #4a5568;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 20px;
+        }
+        .sound-toggle:hover { background: rgba(255,255,255,0.1); }
+
+    </style>
+</head>
+<body>
+
+    <!-- Sound Toggle Button -->
+    <button id="sound-btn" class="sound-toggle" onclick="toggleSound()">🔇</button>
+
+    <!-- Start Screen -->
+    <div id="start-screen" class="modal">
+        <h1 class="text-6xl text-pink-500 mb-4 text-shadow-lg glow">TETRIS QUEST</h1>
+        <p class="mb-8 text-xl text-gray-300">ラインを消してモンスターを倒せ！</p>
+        <button onclick="startGame()" class="px-8 py-4 bg-pink-600 hover:bg-pink-500 rounded text-2xl font-bold shadow-lg transform transition hover:scale-105">
+            冒険を始める
+        </button>
+        <div class="mt-8 text-sm text-gray-400 text-center">
+            <p>操作方法 (PC): 矢印キー移動/回転, Space: ドロップ, Z/X: スキル</p>
+            <p>スマホ: 画面下のボタンを使用</p>
+        </div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="game-over-screen" class="modal hidden">
+        <h1 class="text-5xl text-red-500 mb-4">GAME OVER</h1>
+        <p id="final-score" class="text-2xl mb-4">Level: 1</p>
+        <button onclick="location.reload()" class="px-6 py-3 bg-gray-600 hover:bg-gray-500 rounded text-xl font-bold">
+            もう一度挑戦
+        </button>
+    </div>
+
+    <div class="game-container">
+        
+        <!-- Left Panel: Player Stats & Skills -->
+        <div class="panel flex flex-col justify-between order-2 md:order-1">
+            <div>
+                <h2 class="text-xl font-bold mb-2 text-yellow-400">HERO (あなた)</h2>
+                <div class="mb-1 flex justify-between text-sm"><span>LV. <span id="player-level">1</span></span> <span>ATK: <span id="player-atk">10</span></span></div>
+                
+                <div class="text-xs mb-1">HP <span id="hp-text">100/100</span></div>
+                <div class="bar-container"><div id="hp-bar" class="bar-fill hp-fill" style="width: 100%"></div></div>
+                
+                <div class="text-xs mb-1">MP <span id="mp-text">50/50</span></div>
+                <div class="bar-container"><div id="mp-bar" class="bar-fill mp-fill" style="width: 100%"></div></div>
+
+                <div class="text-xs mb-1">EXP</div>
+                <div class="bar-container"><div id="exp-bar" class="bar-fill exp-fill" style="width: 0%"></div></div>
+            </div>
+
+            <div class="mt-4">
+                <h3 class="text-lg font-bold mb-2 border-b border-gray-600 pb-1">SKILLS</h3>
+                <button onclick="castSkill('heal')" id="btn-heal" class="w-full mb-2 bg-green-800 hover:bg-green-700 p-2 rounded text-sm flex justify-between items-center disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span>💖 回復 (Heal)</span> <span class="text-blue-300">20MP</span>
+                </button>
+                <button onclick="castSkill('bomb')" id="btn-bomb" class="w-full bg-red-900 hover:bg-red-800 p-2 rounded text-sm flex justify-between items-center disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span>💣 爆破 (Bomb)</span> <span class="text-blue-300">30MP</span>
+                </button>
+                <p class="text-xs text-gray-400 mt-2 text-center">Key: Z (Heal) / X (Bomb)</p>
+            </div>
+
+            <div class="mt-auto hidden md:block">
+                <h3 class="font-bold mb-1">NEXT</h3>
+                <div id="next-piece-display" class="w-20 h-20 border border-gray-600 mx-auto bg-black grid grid-cols-4 grid-rows-4"></div>
+            </div>
+        </div>
+
+        <!-- Center Panel: Tetris Board -->
+        <div class="panel flex flex-col items-center justify-center order-1 md:order-2 relative">
+            <!-- Effects Layer -->
+            <div id="effects-layer" class="absolute inset-0 pointer-events-none flex justify-center items-center z-10"></div>
+            
+            <div id="tetris-board">
+                <!-- Cells generated by JS -->
+            </div>
+        </div>
+
+        <!-- Right Panel: Enemy & Log -->
+        <div class="panel flex flex-col order-3">
+            <div class="text-center mb-4 relative">
+                <h2 class="text-xl font-bold mb-1 text-red-400" id="enemy-name">Slime</h2>
+                <div id="enemy-visual" class="enemy-sprite my-4">💧</div>
+                
+                <div class="bar-container h-4 mb-1 bg-gray-700 border border-gray-500">
+                    <div id="enemy-hp-bar" class="bar-fill bg-red-600" style="width: 100%"></div>
+                </div>
+                <div class="text-xs text-right mb-2">HP: <span id="enemy-hp-text">50</span></div>
+
+                <div class="text-xs text-left mb-1 text-purple-300">ATTACK TIMER</div>
+                <div class="bar-container h-2">
+                    <div id="enemy-timer-bar" class="bar-fill enemy-timer-fill" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div class="flex-grow bg-black bg-opacity-50 rounded p-2 overflow-y-auto font-mono text-xs" id="game-log" style="height: 150px;">
+                <div class="text-gray-400">Welcome to Tetris Quest!</div>
+            </div>
+        </div>
+
+        <!-- Mobile Controls (Bottom) -->
+        <div class="mobile-controls order-4 md:hidden col-span-full">
+            <button class="ctrl-btn" ontouchstart="rotate(event)">↻</button>
+            <button class="ctrl-btn" ontouchstart="moveDown(event)">↓</button>
+            <button class="ctrl-btn" ontouchstart="drop(event)">⏬</button>
+            
+            <button class="ctrl-btn" ontouchstart="moveLeft(event)">←</button>
+            <button class="ctrl-btn" onclick="castSkill('heal')">💖</button>
+            <button class="ctrl-btn" ontouchstart="moveRight(event)">→</button>
+        </div>
+
+    </div>
+
+<script>
+/**
+ * AUDIO SYSTEM (Web Audio API - No external files)
+ */
+const AudioSys = {
+    ctx: null,
+    isMuted: true, // Start muted by default for browser policy
+    bgmOscillators: [],
+    bgmInterval: null,
+    bgmNoteIndex: 0,
+    
+    init: function() {
+        window.AudioContext = window.AudioContext || window.webkitAudioContext;
+        this.ctx = new AudioContext();
+    },
+
+    toggle: function() {
+        const btn = document.getElementById('sound-btn');
+        if (this.isMuted) {
+            this.isMuted = false;
+            btn.innerText = "🔊";
+            if (!this.ctx) this.init();
+            if (this.ctx.state === 'suspended') this.ctx.resume();
+            if (gameRunning) this.playBGM('battle');
+        } else {
+            this.isMuted = true;
+            btn.innerText = "🔇";
+            this.stopBGM();
+        }
+    },
+
+    playTone: function(freq, type, duration, vol = 0.1, slideTo = null) {
+        if (this.isMuted || !this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+        if (slideTo) {
+            osc.frequency.exponentialRampToValueAtTime(slideTo, this.ctx.currentTime + duration);
+        }
+
+        gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + duration);
+    },
+
+    playNoise: function(duration, vol = 0.1) {
+        if (this.isMuted || !this.ctx) return;
+        const bufferSize = this.ctx.sampleRate * duration;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+        const gain = this.ctx.createGain();
+        
+        // Simple lowpass filter for explosion/hit sound
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 1000;
+
+        gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+        noise.start();
+    },
+
+    // SFX Presets
+    play: function(name) {
+        if(this.isMuted) return;
+        switch(name) {
+            case 'move': 
+                this.playTone(150, 'triangle', 0.05, 0.05); 
+                break;
+            case 'rotate': 
+                this.playTone(400, 'square', 0.1, 0.05, 600); 
+                break;
+            case 'drop': 
+                this.playTone(100, 'sawtooth', 0.15, 0.1, 50); 
+                break;
+            case 'clear': 
+                // Arpeggio
+                setTimeout(() => this.playTone(523.25, 'square', 0.1, 0.1), 0); // C5
+                setTimeout(() => this.playTone(659.25, 'square', 0.1, 0.1), 50); // E5
+                setTimeout(() => this.playTone(783.99, 'square', 0.2, 0.1), 100); // G5
+                break;
+            case 'tetris': 
+                // Glorious sound
+                [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => {
+                    setTimeout(() => this.playTone(f, 'square', 0.3, 0.15), i * 60);
+                });
+                break;
+            case 'damage': 
+                this.playNoise(0.3, 0.2); 
+                break;
+            case 'attack':
+                this.playTone(200, 'sawtooth', 0.1, 0.1, 50);
+                setTimeout(() => this.playNoise(0.1, 0.1), 50);
+                break;
+            case 'heal': 
+                this.playTone(440, 'sine', 0.4, 0.1, 880); 
+                break;
+            case 'levelup':
+                [440, 554, 659, 880, 1108, 1318].forEach((f, i) => { // A Major
+                    setTimeout(() => this.playTone(f, 'square', 0.2, 0.1), i * 80);
+                });
+                break;
+            case 'gameover':
+                this.playTone(300, 'sawtooth', 1.0, 0.2, 50);
+                break;
+        }
+    },
+
+    // Simple Sequencer
+    playBGM: function(type) {
+        this.stopBGM();
+        if (this.isMuted || !this.ctx) return;
+
+        const tempo = 150; // ms per note
+        let melody = [];
+        
+        if (type === 'battle') {
+            // "Korobeiniki" inspired bass/melody hybrid
+            const notes = [
+                659, 493, 523, 587, 523, 493, 440, 440, 523, 659, 587, 523, 493, 523, 587, 659, 523, 440, 440, 0
+            ];
+            melody = notes;
+        }
+
+        this.bgmNoteIndex = 0;
+        
+        const playNextNote = () => {
+            if (!gameRunning || this.isMuted) return;
+            
+            const freq = melody[this.bgmNoteIndex];
+            if (freq > 0) {
+                // Bass/Lead sound
+                this.playTone(freq / 2, 'square', 0.1, 0.03); // Bass
+                this.playTone(freq, 'triangle', 0.1, 0.03); // Lead
+            }
+
+            this.bgmNoteIndex = (this.bgmNoteIndex + 1) % melody.length;
+        };
+
+        this.bgmInterval = setInterval(playNextNote, 200);
+    },
+
+    stopBGM: function() {
+        if (this.bgmInterval) {
+            clearInterval(this.bgmInterval);
+            this.bgmInterval = null;
+        }
+    }
+};
+
+// Helper for button
+function toggleSound() {
+    AudioSys.toggle();
+}
+
+/**
+ * TETRIS RPG LOGIC
+ */
+
+// --- Config & State ---
+const ROWS = 20;
+const COLS = 10;
+let board = [];
+let gameRunning = false;
+let lastTime = 0;
+let dropCounter = 0;
+let dropInterval = 1000; // Speed of falling
+
+// Pieces
+const PIECES = [
+    [], // Empty
+    { shape: [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], class: 'block-i' }, // I
+    { shape: [[1,0,0],[1,1,1],[0,0,0]], class: 'block-j' }, // J
+    { shape: [[0,0,1],[1,1,1],[0,0,0]], class: 'block-l' }, // L
+    { shape: [[1,1],[1,1]], class: 'block-o' }, // O
+    { shape: [[0,1,1],[1,1,0],[0,0,0]], class: 'block-s' }, // S
+    { shape: [[0,1,0],[1,1,1],[0,0,0]], class: 'block-t' }, // T
+    { shape: [[1,1,0],[0,1,1],[0,0,0]], class: 'block-z' }  // Z
+];
+
+let currentPiece = null;
+let nextPieceType = null;
+let score = 0;
+
+// --- RPG State ---
+const player = {
+    maxHp: 100,
+    hp: 100,
+    maxMp: 50,
+    mp: 50,
+    level: 1,
+    exp: 0,
+    expToNext: 100,
+    atk: 10
+};
+
+let enemy = null;
+let enemyAttackTimer = 0;
+const ENEMY_ATTACK_INTERVAL = 5000; // ms
+
+const ENEMIES_DATA = [
+    { name: "Slime", icon: "💧", hp: 50, atk: 5, exp: 30 },
+    { name: "Bat", icon: "🦇", hp: 80, atk: 8, exp: 40 },
+    { name: "Skeleton", icon: "💀", hp: 120, atk: 12, exp: 60 },
+    { name: "Orc", icon: "👹", hp: 200, atk: 15, exp: 100 },
+    { name: "Dragon", icon: "🐉", hp: 500, atk: 25, exp: 300 },
+    { name: "Demon King", icon: "👿", hp: 1000, atk: 40, exp: 1000 }
+];
+let enemyIndex = 0;
+
+// --- DOM Elements ---
+const boardEl = document.getElementById('tetris-board');
+const logEl = document.getElementById('game-log');
+
+// --- Initialization ---
+function initBoard() {
+    board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+    boardEl.innerHTML = '';
+    for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+            const cell = document.createElement('div');
+            cell.classList.add('cell');
+            cell.id = `cell-${r}-${c}`;
+            boardEl.appendChild(cell);
+        }
+    }
+}
+
+function startGame() {
+    // Audio Init if not already
+    if (!AudioSys.ctx && !AudioSys.isMuted) AudioSys.init();
+    if (AudioSys.ctx && AudioSys.ctx.state === 'suspended') AudioSys.ctx.resume();
+    
+    document.getElementById('start-screen').classList.add('hidden');
+    document.getElementById('game-over-screen').classList.add('hidden');
+    
+    // Reset RPG stats
+    player.hp = player.maxHp;
+    player.mp = player.maxMp;
+    player.level = 1;
+    player.exp = 0;
+    player.atk = 10;
+    enemyIndex = 0;
+    
+    updatePlayerUI();
+    spawnEnemy();
+    
+    // Start BGM
+    AudioSys.playBGM('battle');
+    AudioSys.play('levelup'); // Start sound
+    
+    // Reset Tetris
+    initBoard();
+    score = 0;
+    dropInterval = 1000;
+    gameRunning = true;
+    
+    spawnPiece();
+    requestAnimationFrame(update);
+    log("冒険が始まった！");
+}
+
+function spawnEnemy() {
+    const data = ENEMIES_DATA[Math.min(enemyIndex, ENEMIES_DATA.length - 1)];
+    // Scale enemy stats if looping or deep in levels
+    const scale = 1 + (Math.max(0, enemyIndex - (ENEMIES_DATA.length - 1)) * 0.5);
+    
+    enemy = {
+        name: data.name,
+        icon: data.icon,
+        maxHp: Math.floor(data.hp * scale),
+        hp: Math.floor(data.hp * scale),
+        atk: Math.floor(data.atk * scale),
+        exp: Math.floor(data.exp * scale),
+        timer: 0
+    };
+    
+    updateEnemyUI();
+    log(`${enemy.name} が現れた！`);
+    
+    // Animation
+    const visual = document.getElementById('enemy-visual');
+    visual.innerText = enemy.icon;
+    visual.classList.remove('shake-anim');
+    void visual.offsetWidth; // trigger reflow
+    visual.classList.add('shake-anim');
+}
+
+// --- Game Loop ---
+function update(time = 0) {
+    if (!gameRunning) return;
+
+    const deltaTime = time - lastTime;
+    lastTime = time;
+
+    // Tetris Gravity
+    dropCounter += deltaTime;
+    if (dropCounter > dropInterval) {
+        movePiece(0, 1);
+        dropCounter = 0;
+    }
+
+    // Enemy Attack Timer (ATB)
+    if (enemy) {
+        enemy.timer += deltaTime;
+        const pct = Math.min(100, (enemy.timer / ENEMY_ATTACK_INTERVAL) * 100);
+        document.getElementById('enemy-timer-bar').style.width = `${pct}%`;
+
+        if (enemy.timer >= ENEMY_ATTACK_INTERVAL) {
+            enemyAttack();
+            enemy.timer = 0;
+        }
+    }
+
+    draw();
+    requestAnimationFrame(update);
+}
+
+// --- Tetris Logic ---
+
+function spawnPiece() {
+    const typeIdx = nextPieceType !== null ? nextPieceType : (Math.random() * 7 | 0) + 1;
+    nextPieceType = (Math.random() * 7 | 0) + 1; // 1-7
+    
+    const pieceData = PIECES[typeIdx];
+    
+    currentPiece = {
+        matrix: pieceData.shape,
+        class: pieceData.class,
+        x: (COLS / 2 | 0) - (pieceData.shape[0].length / 2 | 0),
+        y: 0
+    };
+
+    // Update Next Piece UI (Simplified)
+    const nextEl = document.getElementById('next-piece-display');
+    nextEl.innerHTML = '';
+    const nextData = PIECES[nextPieceType];
+    if(nextData && nextData.shape) {
+         // Simple grid render for preview
+         nextEl.style.gridTemplateColumns = `repeat(${nextData.shape[0].length}, 1fr)`;
+         nextEl.style.gridTemplateRows = `repeat(${nextData.shape.length}, 1fr)`;
+         nextData.shape.forEach(row => {
+             row.forEach(val => {
+                 const d = document.createElement('div');
+                 if (val) {
+                     d.className = nextData.class;
+                     d.style.width='100%'; d.style.height='100%';
+                 }
+                 nextEl.appendChild(d);
+             });
+         });
+    }
+
+    if (collide(board, currentPiece)) {
+        gameOver();
+    }
+}
+
+function movePiece(dx, dy) {
+    currentPiece.x += dx;
+    currentPiece.y += dy;
+    if (collide(board, currentPiece)) {
+        currentPiece.x -= dx;
+        currentPiece.y -= dy;
+        if (dy > 0) {
+            AudioSys.play('drop'); // SE: Drop
+            merge(board, currentPiece);
+            checkLines();
+            spawnPiece();
+        }
+        return false;
+    }
+    if (dy === 0) AudioSys.play('move'); // SE: Move (horizontal only)
+    return true;
+}
+
+function rotate(event) {
+    if(event) event.preventDefault(); // Mobile prevent default
+    const pos = currentPiece.x;
+    let offset = 1;
+    const matrix = currentPiece.matrix;
+    
+    // Transpose + Reverse
+    const newMatrix = matrix[0].map((val, index) => matrix.map(row => row[index]).reverse());
+    
+    const oldMatrix = currentPiece.matrix;
+    currentPiece.matrix = newMatrix;
+    
+    // Wall kick (basic)
+    while (collide(board, currentPiece)) {
+        currentPiece.x += offset;
+        offset = -(offset + (offset > 0 ? 1 : -1));
+        if (offset > newMatrix[0].length) {
+            // Rotate back if failed
+            currentPiece.matrix = oldMatrix;
+            currentPiece.x = pos;
+            return;
+        }
+    }
+    AudioSys.play('rotate'); // SE: Rotate
+}
+
+function collide(scene, piece) {
+    const m = piece.matrix;
+    const o = {x: piece.x, y: piece.y};
+    for (let y = 0; y < m.length; ++y) {
+        for (let x = 0; x < m[y].length; ++x) {
+            if (m[y][x] !== 0 &&
+               (scene[y + o.y] && scene[y + o.y][x + o.x]) !== 0) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+function merge(scene, piece) {
+    piece.matrix.forEach((row, y) => {
+        row.forEach((value, x) => {
+            if (value !== 0) {
+                // Find class index
+                const classIdx = PIECES.findIndex(p => p.class === piece.class);
+                scene[y + piece.y][x + piece.x] = classIdx; 
+            }
+        });
+    });
+    
+    // Gain small MP per block drop
+    addMp(2);
+}
+
+function checkLines() {
+    let linesCleared = 0;
+    outer: for (let y = ROWS - 1; y > 0; --y) {
+        for (let x = 0; x < COLS; ++x) {
+            if (board[y][x] === 0) {
+                continue outer;
+            }
+        }
+        const row = board.splice(y, 1)[0].fill(0);
+        board.unshift(row);
+        ++y;
+        linesCleared++;
+    }
+
+    if (linesCleared > 0) {
+        if(linesCleared >= 4) AudioSys.play('tetris');
+        else AudioSys.play('clear');
+        playerAttack(linesCleared);
+    }
+}
+
+function draw() {
+    // Draw board
+    for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+            const cell = document.getElementById(`cell-${y}-${x}`);
+            const val = board[y][x];
+            cell.className = 'cell'; // reset
+            if (val !== 0) {
+                cell.classList.add(PIECES[val].class);
+            }
+        }
+    }
+
+    // Draw Active Piece
+    if (currentPiece) {
+        currentPiece.matrix.forEach((row, y) => {
+            row.forEach((val, x) => {
+                if (val !== 0) {
+                    const py = y + currentPiece.y;
+                    const px = x + currentPiece.x;
+                    if (py >= 0 && py < ROWS && px >= 0 && px < COLS) {
+                        const cell = document.getElementById(`cell-${py}-${px}`);
+                        cell.classList.add(currentPiece.class);
+                    }
+                }
+            });
+        });
+        
+        // Draw Ghost Piece
+        let ghostY = currentPiece.y;
+        while(!collide(board, {matrix: currentPiece.matrix, x: currentPiece.x, y: ghostY + 1})) {
+            ghostY++;
+        }
+        if(ghostY !== currentPiece.y) {
+             currentPiece.matrix.forEach((row, y) => {
+                row.forEach((val, x) => {
+                    if (val !== 0) {
+                        const py = y + ghostY;
+                        const px = x + currentPiece.x;
+                        if (py >= 0 && py < ROWS && px >= 0 && px < COLS) {
+                             const cell = document.getElementById(`cell-${py}-${px}`);
+                             if(!cell.classList.contains(currentPiece.class)) {
+                                 cell.classList.add('block-ghost');
+                             }
+                        }
+                    }
+                });
+            });
+        }
+    }
+}
+
+// --- RPG Logic ---
+
+function updatePlayerUI() {
+    document.getElementById('player-level').innerText = player.level;
+    document.getElementById('player-atk').innerText = player.atk;
+    
+    // HP
+    const hpPct = (player.hp / player.maxHp) * 100;
+    document.getElementById('hp-bar').style.width = `${hpPct}%`;
+    document.getElementById('hp-text').innerText = `${player.hp}/${player.maxHp}`;
+
+    // MP
+    const mpPct = (player.mp / player.maxMp) * 100;
+    document.getElementById('mp-bar').style.width = `${mpPct}%`;
+    document.getElementById('mp-text').innerText = `${player.mp}/${player.maxMp}`;
+
+    // EXP
+    const expPct = (player.exp / player.expToNext) * 100;
+    document.getElementById('exp-bar').style.width = `${expPct}%`;
+
+    // Buttons
+    document.getElementById('btn-heal').disabled = player.mp < 20;
+    document.getElementById('btn-bomb').disabled = player.mp < 30;
+}
+
+function updateEnemyUI() {
+    if(!enemy) return;
+    document.getElementById('enemy-name').innerText = enemy.name;
+    const hpPct = Math.max(0, (enemy.hp / enemy.maxHp) * 100);
+    document.getElementById('enemy-hp-bar').style.width = `${hpPct}%`;
+    document.getElementById('enemy-hp-text').innerText = enemy.hp;
+}
+
+function playerAttack(lines) {
+    // Damage calc: Base Atk * Lines * Multiplier
+    const multiplier = lines === 4 ? 2.5 : lines === 3 ? 1.8 : lines === 2 ? 1.3 : 1.0;
+    let damage = Math.ceil(player.atk * lines * multiplier);
+    
+    // Crit chance based on level
+    if(Math.random() < player.level * 0.02) {
+        damage *= 2;
+        log("CRITICAL HIT!!", "text-yellow-400");
+        AudioSys.play('attack'); // Heavy hit
+    } else {
+        AudioSys.play('attack'); // Normal hit
+    }
+
+    enemy.hp -= damage;
+    showFloatingText(damage, '#enemy-visual', 'damage-text');
+    log(`ライン消去(${lines})! ${enemy.name}に ${damage} ダメージ！`);
+    
+    // Visual shake
+    const vis = document.getElementById('enemy-visual');
+    vis.classList.remove('shake-anim');
+    void vis.offsetWidth;
+    vis.classList.add('shake-anim');
+
+    if (enemy.hp <= 0) {
+        winBattle();
+    } else {
+        updateEnemyUI();
+    }
+}
+
+function enemyAttack() {
+    // Damage varies slightly
+    const variance = (Math.random() * 0.4) + 0.8; // 0.8 - 1.2
+    const damage = Math.ceil(enemy.atk * variance);
+    
+    player.hp -= damage;
+    updatePlayerUI();
+    log(`${enemy.name}の攻撃！ ${damage} ダメージを受けた！`, "text-red-300");
+    AudioSys.play('damage'); // SE: Damage taken
+    
+    // Screen shake
+    document.body.classList.add('shake-anim');
+    setTimeout(() => document.body.classList.remove('shake-anim'), 500);
+
+    if (player.hp <= 0) {
+        gameOver();
+    }
+}
+
+function winBattle() {
+    log(`${enemy.name} を倒した！`, "text-yellow-300");
+    
+    // EXP Gain
+    player.exp += enemy.exp;
+    if (player.exp >= player.expToNext) {
+        levelUp();
+    }
+    
+    // Small heal on win
+    const heal = Math.floor(player.maxHp * 0.3);
+    player.hp = Math.min(player.maxHp, player.hp + heal);
+    log(`勝利の休息。HPが ${heal} 回復した。`);
+    
+    enemyIndex++;
+    enemy = null; // clear enemy
+    updatePlayerUI();
+    updateEnemyUI(); // clears bar temporarily
+
+    setTimeout(() => {
+        spawnEnemy();
+    }, 1500);
+}
+
+function levelUp() {
+    player.level++;
+    player.exp -= player.expToNext;
+    player.expToNext = Math.floor(player.expToNext * 1.5);
+    
+    // Stats Up
+    player.maxHp += 20;
+    player.hp = player.maxHp; // Full heal
+    player.maxMp += 10;
+    player.mp = player.maxMp;
+    player.atk += 3;
+    
+    log(`LEVEL UP! (Lv.${player.level}) Stats Increased!`, "text-green-400 font-bold");
+    AudioSys.play('levelup'); // SE: Level Up
+}
+
+function castSkill(skillName) {
+    if (!gameRunning) return;
+
+    if (skillName === 'heal') {
+        if (player.mp >= 20) {
+            player.mp -= 20;
+            const amount = Math.floor(player.maxHp * 0.5);
+            player.hp = Math.min(player.maxHp, player.hp + amount);
+            log(`ヒール！ HPが ${amount} 回復した。`, "text-green-300");
+            showFloatingText(amount, '#tetris-board', 'heal-text');
+            AudioSys.play('heal'); // SE: Heal
+        }
+    } else if (skillName === 'bomb') {
+        if (player.mp >= 30) {
+            player.mp -= 30;
+            // Clear random blocks
+            let cleared = 0;
+            for(let y=ROWS-1; y>=10; y--) {
+                for(let x=0; x<COLS; x++) {
+                    if(board[y][x] !== 0 && Math.random() < 0.5) {
+                        board[y][x] = 0;
+                        cleared++;
+                    }
+                }
+            }
+            log(`ボム！ ${cleared}個のブロックを破壊した！`, "text-orange-400");
+            AudioSys.play('damage'); // SE: Bomb explosion sound
+            if(enemy) {
+                const bombDmg = player.atk * 3;
+                enemy.hp -= bombDmg;
+                showFloatingText(bombDmg, '#enemy-visual', 'damage-text');
+                if(enemy.hp <= 0) winBattle(); else updateEnemyUI();
+            }
+        }
+    }
+    updatePlayerUI();
+}
+
+function addMp(amount) {
+    player.mp = Math.min(player.maxMp, player.mp + amount);
+    updatePlayerUI();
+}
+
+function gameOver() {
+    gameRunning = false;
+    AudioSys.stopBGM();
+    AudioSys.play('gameover'); // SE: Game Over
+    document.getElementById('game-over-screen').classList.remove('hidden');
+    document.getElementById('final-score').innerText = `Reached Level ${player.level} - Defeated: ${enemyIndex}`;
+}
+
+// --- Utilities ---
+
+function log(msg, colorClass = "text-white") {
+    const el = document.createElement('div');
+    el.className = `mb-1 ${colorClass}`;
+    el.innerText = `> ${msg}`;
+    logEl.appendChild(el);
+    logEl.scrollTop = logEl.scrollHeight;
+}
+
+function showFloatingText(text, targetSelector, animClass) {
+    const target = document.querySelector(targetSelector);
+    if(!target) return;
+    const rect = target.getBoundingClientRect();
+    
+    const el = document.createElement('div');
+    el.innerText = text;
+    el.className = animClass;
+    el.style.left = (rect.left + rect.width/2) + 'px';
+    el.style.top = (rect.top) + 'px';
+    el.style.zIndex = 1000;
+    
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 1000);
+}
+
+// --- Input ---
+document.addEventListener('keydown', event => {
+    if (!gameRunning) return;
+    
+    if (event.keyCode === 37) { // Left
+        movePiece(-1, 0);
+    } else if (event.keyCode === 39) { // Right
+        movePiece(1, 0);
+    } else if (event.keyCode === 40) { // Down
+        movePiece(0, 1);
+        addMp(0.5); // Tiny MP for manual drop
+    } else if (event.keyCode === 38) { // Up
+        rotate();
+    } else if (event.keyCode === 32) { // Space (Drop)
+        while(movePiece(0, 1)) {} // Hard drop logic handled by movePiece returning false eventually
+    } else if (event.key.toLowerCase() === 'z') {
+        castSkill('heal');
+    } else if (event.key.toLowerCase() === 'x') {
+        castSkill('bomb');
+    }
+});
+
+// Mobile Touch Helpers
+function moveLeft(e) { if(gameRunning && e) { e.preventDefault(); movePiece(-1, 0); } }
+function moveRight(e) { if(gameRunning && e) { e.preventDefault(); movePiece(1, 0); } }
+function moveDown(e) { if(gameRunning && e) { e.preventDefault(); movePiece(0, 1); } }
+function drop(e) { 
+    if(gameRunning && e) { 
+        e.preventDefault(); 
+        // Simple hard drop loop
+        while(movePiece(0,1));
+    } 
+}
+
+</script>
+</body>
+</html>
