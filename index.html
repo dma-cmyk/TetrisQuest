@@ -15,16 +15,18 @@
             --text-color: #e94560;
         }
 
-        body {
+        body, html {
             font-family: 'DotGothic16', sans-serif;
             background-color: var(--bg-color);
             color: white;
             touch-action: none; /* Prevent pull-to-refresh on mobile */
-            overflow: hidden; /* **スクロールを完全に禁止** */
+            overflow: hidden; 
             user-select: none;
             -webkit-user-select: none;
             padding: 0;
             margin: 0;
+            /* モバイルブラウザの vh 問題対策: bodyとhtmlにmin-height: 100vh; を指定 */
+            min-height: 100vh; 
             height: 100%; 
         }
 
@@ -46,7 +48,8 @@
             gap: 10px;
             max-width: 1000px;
             margin: 0 auto;
-            height: 100vh; /* ビューポートの高さを使用 */
+            /* 100vh または 100% の高さで画面に収める */
+            height: 100vh; 
             padding: 10px;
             position: relative;
         }
@@ -56,16 +59,20 @@
             .game-container {
                 /* New fixed layout for mobile: Tetris > Skills (fixed) */
                 grid-template-columns: 1fr;
-                grid-template-rows: auto auto auto; 
-                height: 100vh; /* Use full viewport height */
-                padding: 5px; /* Reduced overall padding */
-                padding-bottom: 55px; /* Space for skill buttons at the bottom */
+                /* 高さ調整のため、固定ピクセル値の代わりに flex を使用 */
+                display: flex;
+                flex-direction: column; 
+                height: 100%; 
+                min-height: 100vh;
+                padding: 5px; 
+                /* 固定ボタンのスペースは、flexコンテナの高さ計算に任せる */
+                padding-bottom: 0; 
                 gap: 5px;
             }
             /* Explicitly define order for mobile */
             .tetris-panel { order: 1; padding: 0; } 
             
-            /* 【重要修正】デスクトップ要素をモバイルで完全に非表示にする */
+            /* デスクトップ要素をモバイルで完全に非表示にする */
             .desktop-only { display: none !important; }
             #battle-hud { display: none !important; } 
             .log-panel { display: none !important; } 
@@ -74,21 +81,24 @@
 
             /* Tetris Board sizing: maximize width while maintaining aspect ratio */
             .tetris-panel {
-                 /* Ensure panel takes up max height possible to push controls to the bottom */
-                /* 100vh - スキルボタン (50px) - 上下padding (10px) = 残りのスペース */
-                height: calc(100vh - 55px - 10px); 
+                 /* flex-grow: 1 で残りのスペースを占有し、ボードを最大化 */
+                flex-grow: 1;
+                /* ボードの高さを確保するための最小値 */
+                min-height: 200px; 
                 display: flex;
-                align-items: center; /* Center board vertically within the panel */
+                align-items: center; 
                 justify-content: center;
+                /* flexアイテムのため、height: calc(...) は不要 */
             }
             #tetris-board { 
                 width: 95vw; 
                 max-width: 300px; 
+                /* 高さを設定しないことで、padding-bottomによるアスペクト比固定を有効にする */
                 height: 0; 
                 padding-bottom: 200%; 
                 position: relative;
-                margin: auto; /* Center board horizontally */
-                display: block; /* Use block for absolute cell positioning */
+                margin: auto; 
+                display: block; 
             }
             
             .cell {
@@ -319,6 +329,23 @@
         }
         .sound-toggle:hover { background: rgba(255,255,255,0.1); }
 
+        /* Hold Panel (Desktop Only) */
+        .hold-panel-desktop {
+            margin-bottom: 20px;
+        }
+        .hold-box {
+             border: 2px solid #d69e2e;
+             background-color: rgba(0, 0, 0, 0.4);
+             margin: 5px auto;
+             width: 80px;
+             height: 80px;
+             display: grid;
+             grid-template-columns: repeat(4, 1fr);
+             grid-template-rows: repeat(4, 1fr);
+             align-items: center;
+             justify-items: center;
+        }
+
         /* Touch Hints (removed for ultra-minimalist mobile) */
     </style>
 </head>
@@ -356,8 +383,8 @@
         </div>
 
         <div class="mt-8 text-sm text-gray-400 text-center">
-            <p class="desktop-only">操作: 矢印キー移動/回転, Space: ドロップ, Z/X: スキル</p>
-            <p class="md:hidden">操作: スワイプで移動・落下, タップで回転</p>
+            <p class="desktop-only">操作: 矢印キー移動/回転, Space: ドロップ, **Shift**: ホールド, **Ctrl/右クリック**: 逆回転, Z/X: スキル</p>
+            <p class="md:hidden">操作: スワイプで移動・落下, **タップ**: 順回転, **ダブルタップ**: 逆回転</p>
         </div>
     </div>
 
@@ -439,6 +466,16 @@
 
         <!-- Left Panel: Player Stats & Skills (Desktop Only) -->
         <div class="panel flex flex-col justify-between desktop-only order-1">
+            
+            <!-- HOLD DISPLAY -->
+            <div class="hold-panel-desktop">
+                <h3 class="font-bold mb-1 text-center">HOLD (Shift)</h3>
+                <div id="held-piece-display" class="hold-box">
+                    <!-- Held piece placed here -->
+                </div>
+            </div>
+            
+
             <div>
                 <!-- ADDED ID HERE -->
                 <h2 class="text-xl font-bold mb-2 text-yellow-400"><span id="player-name-desktop">HERO</span> (あなた)</h2> 
@@ -705,6 +742,10 @@
     let currentPiece = null;
     let nextPieceType = null;
     
+    // Hold variables
+    let heldPiece = null;
+    let canHold = true;
+
     let player = JSON.parse(JSON.stringify(DEFAULT_PLAYER)); // Deep copy
     let enemy = null;
     let enemyAttackTimer = 0;
@@ -751,6 +792,7 @@
                     y: currentPiece.y
                 },
                 nextPieceType: nextPieceType,
+                heldPiece: heldPiece, // Save held piece
                 enemy: enemy,
                 enemyAttackTimer: enemyAttackTimer,
                 enemyIndex: enemyIndex,
@@ -779,6 +821,7 @@
                 board = data.board;
                 currentPiece = data.currentPiece;
                 nextPieceType = data.nextPieceType;
+                heldPiece = data.heldPiece || null; // Load held piece
 
                 // Load Enemy
                 enemy = data.enemy;
@@ -906,6 +949,8 @@
             Object.assign(player, JSON.parse(JSON.stringify(DEFAULT_PLAYER))); // Reset to default
             player.playerName = name;
             enemyIndex = 0; 
+            heldPiece = null; // Reset held piece
+            canHold = true; // Reset hold flag
             
             // Reset Tetris state
             initBoard();
@@ -914,6 +959,9 @@
             spawnEnemy();
             spawnPiece();
             log("新しく冒険が始まった！");
+        } else {
+            // If continuing a game, ensure canHold is true at the start of the next piece after load
+            canHold = true; 
         }
 
         // Audio Init/Start
@@ -924,6 +972,7 @@
         gameRunning = true;
         updatePlayerUI(); // プレイヤー名をここで更新
         updateEnemyUI();
+        updateHeldPieceUI(); // Update held piece display
         
         // Initialize Touch Controls 
         initTouchControls();
@@ -970,11 +1019,18 @@
     let touchStartTime = 0;
     const TAP_MAX_TIME = 250;
     const TAP_MAX_DIST = 10;
+    let lastTapTime = 0;
     
     
     function initTouchControls() {
         const touchArea = document.getElementById('tetris-board');
         
+        // Context menu (Right-click) prevention for reverse rotation
+        touchArea.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            if(gameRunning) rotateCounterClockwise();
+        });
+
         touchArea.addEventListener('touchstart', (e) => {
             if (!gameRunning) return;
             if(e.target.tagName === 'BUTTON') return;
@@ -1023,12 +1079,98 @@
             
             const duration = Date.now() - touchStartTime;
             const dist = Math.hypot(e.changedTouches[0].clientX - touchStartX, e.changedTouches[0].clientY - touchStartY);
-
+            
+            // Check for tap (single or double)
             if (!isTouchMoving && duration < TAP_MAX_TIME && dist < TAP_MAX_DIST) {
-                rotate();
+                const now = Date.now();
+                
+                if (now - lastTapTime < 300) { // Double tap threshold (300ms)
+                    // Double Tap: Counter-Clockwise Rotation
+                    rotateCounterClockwise();
+                    lastTapTime = 0; // Reset double tap
+                } else {
+                    // Single Tap: Clockwise Rotation
+                    rotate();
+                    lastTapTime = now;
+                }
             }
+            
+            // NOTE: Mobile hold feature is removed for better touch experience (tap vs double tap)
         });
     }
+    
+    function holdPiece() {
+        if (!canHold || !currentPiece) return;
+
+        // 1. 現在のピースの情報を保存
+        const currentPieceData = {
+            matrix: currentPiece.matrix,
+            class: currentPiece.class
+        };
+
+        if (heldPiece) {
+            // 2. ホールドピースが存在する場合、入れ替える
+            const newPieceData = PIECES.find(p => p.class === heldPiece.class);
+            
+            // 新しいピース（ホールドから出たピース）を生成
+            currentPiece = {
+                matrix: newPieceData.shape,
+                class: newPieceData.class,
+                x: (COLS / 2 | 0) - (newPieceData.shape[0].length / 2 | 0),
+                y: 0
+            };
+            
+            // ホールドに現在のピースを入れる
+            heldPiece = currentPieceData;
+        } else {
+            // 3. ホールドピースが存在しない場合、現在のピースをホールドし、次のピースを出現させる
+            heldPiece = currentPieceData;
+            spawnPiece(true); // trueを渡して、nextPieceTypeを消費しないようにする
+        }
+
+        canHold = false; // 1ターンに1回のみホールド可能
+        updateHeldPieceUI();
+        log(`ピースをホールドしました。`, "text-yellow-300");
+    }
+
+    function updateHeldPieceUI() {
+        const heldEl = document.getElementById('held-piece-display');
+        if(!heldEl) return;
+        
+        heldEl.innerHTML = '';
+        if (heldPiece) {
+            const pieceData = PIECES.find(p => p.class === heldPiece.class);
+            if(pieceData && pieceData.shape) {
+                heldEl.style.gridTemplateColumns = `repeat(4, 1fr)`;
+                heldEl.style.gridTemplateRows = `repeat(4, 1fr)`;
+                
+                // ピースを中央に寄せて表示するためのオフセットを計算
+                let startY = 0;
+                let startX = 0;
+                if (pieceData.shape.length < 4) startY = 1; 
+                if (pieceData.shape[0].length < 4) startX = 1;
+
+                pieceData.shape.forEach((row, r) => {
+                    row.forEach((val, c) => {
+                        const d = document.createElement('div');
+                        if (val) {
+                            d.className = heldPiece.class;
+                            // ピースが常に中央に来るように配置
+                            d.style.gridRowStart = r + startY + 1;
+                            d.style.gridColumnStart = c + startX + 1;
+                            d.style.width='100%'; d.style.height='100%';
+                        } else {
+                             // 空のセルを埋めてグリッドを維持
+                            d.style.gridRowStart = r + startY + 1;
+                            d.style.gridColumnStart = c + startX + 1;
+                        }
+                        heldEl.appendChild(d);
+                    });
+                });
+            }
+        }
+    }
+
 
     function spawnEnemy() {
         const data = ENEMIES_DATA[Math.min(enemyIndex, ENEMIES_DATA.length - 1)];
@@ -1090,9 +1232,13 @@
         requestAnimationFrame(update);
     }
     
-    function spawnPiece() {
+    // newPiece=true の場合、nextPieceTypeを消費せず、新しいランダムなピースを nextPieceType に設定
+    function spawnPiece(fromHold = false) {
         const typeIdx = nextPieceType !== null ? nextPieceType : (Math.random() * 7 | 0) + 1;
-        nextPieceType = (Math.random() * 7 | 0) + 1;
+        
+        if (!fromHold) {
+            nextPieceType = (Math.random() * 7 | 0) + 1;
+        }
         
         const pieceData = PIECES[typeIdx];
         
@@ -1138,6 +1284,9 @@
                 AudioSys.play('drop');
                 merge(board, currentPiece);
                 checkLines();
+                
+                // 次のピースが出現したらホールドをリセット
+                canHold = true; 
                 spawnPiece();
             }
             return false;
@@ -1146,12 +1295,14 @@
         return true;
     }
 
+    // 時計回り回転 (Clockwise)
     function rotate(event) {
         if(event) event.preventDefault();
         const pos = currentPiece.x;
         let offset = 1;
         const matrix = currentPiece.matrix;
         
+        // 回転ロジック: 転置してから行を反転
         const newMatrix = matrix[0].map((val, index) => matrix.map(row => row[index]).reverse());
         
         const oldMatrix = currentPiece.matrix;
@@ -1168,6 +1319,33 @@
         }
         AudioSys.play('rotate');
     }
+    
+    // 反時計回り回転 (Counter-Clockwise)
+    function rotateCounterClockwise(event) {
+        if(event) event.preventDefault();
+        const pos = currentPiece.x;
+        let offset = 1;
+        const matrix = currentPiece.matrix;
+        
+        // 逆回転ロジック: 行を反転してから転置
+        const reversedMatrix = [...matrix].reverse();
+        const newMatrix = reversedMatrix[0].map((val, index) => reversedMatrix.map(row => row[index]));
+        
+        const oldMatrix = currentPiece.matrix;
+        currentPiece.matrix = newMatrix;
+        
+        while (collide(board, currentPiece)) {
+            currentPiece.x += offset;
+            offset = -(offset + (offset > 0 ? 1 : -1));
+            if (offset > newMatrix[0].length) {
+                currentPiece.matrix = oldMatrix;
+                currentPiece.x = pos;
+                return;
+            }
+        }
+        AudioSys.play('rotate'); // 同じSEを使用
+    }
+
 
     function collide(scene, piece) {
         const m = piece.matrix;
@@ -1527,8 +1705,10 @@
         if (event.keyCode === 37) { movePiece(-1, 0); } // Left
         else if (event.keyCode === 39) { movePiece(1, 0); } // Right
         else if (event.keyCode === 40) { movePiece(0, 1); addMp(0.5); } // Down
-        else if (event.keyCode === 38) { rotate(); } // Up
+        else if (event.keyCode === 38) { rotate(); } // Up (Clockwise)
+        else if (event.key === 'Control') { rotateCounterClockwise(); } // Ctrl (Counter-Clockwise)
         else if (event.keyCode === 32) { while(movePiece(0, 1)) {} } // Space (Drop)
+        else if (event.key === 'Shift') { holdPiece(); } // Shift (Hold)
         else if (event.key.toLowerCase() === 'z') { castSkill('heal'); }
         else if (event.key.toLowerCase() === 'x') { castSkill('bomb'); }
     });
@@ -1540,6 +1720,14 @@
     window.toggleSound = toggleSound;
     window.showRanking = showRanking;
     window.hideRanking = hideRanking;
+    
+    // --- Event listener for right-click on board (Desktop CCW Rotation) ---
+    document.getElementById('tetris-board').addEventListener('contextmenu', (e) => {
+        if (gameRunning && window.innerWidth > 768) {
+            e.preventDefault(); 
+            rotateCounterClockwise();
+        }
+    });
 
     
     // --- Initial App Load ---
