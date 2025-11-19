@@ -25,9 +25,10 @@
             -webkit-user-select: none;
             padding: 0;
             margin: 0;
-            /* モバイルブラウザの vh 問題対策: bodyとhtmlにmin-height: 100vh; を指定 */
-            min-height: 100vh; 
-            height: 100%; 
+            width: 100%;
+            height: 100%;
+            /* モバイルのアドレスバー対策 */
+            height: 100dvh; 
         }
 
         /* Custom Scrollbar for Log */
@@ -48,63 +49,69 @@
             gap: 10px;
             max-width: 1000px;
             margin: 0 auto;
-            /* 100vh または 100% の高さで画面に収める */
-            height: 100vh; 
+            height: 100dvh; /* dynamic viewport height */
             padding: 10px;
             position: relative;
+            box-sizing: border-box;
         }
 
         /* MOBILE LAYOUT ADJUSTMENTS (Single Column Stack) */
         @media (max-width: 768px) {
             .game-container {
-                /* New fixed layout for mobile: Tetris > Skills (fixed) */
                 grid-template-columns: 1fr;
-                /* 高さ調整のため、固定ピクセル値の代わりに flex を使用 */
                 display: flex;
                 flex-direction: column; 
-                height: 100%; 
-                min-height: 100vh;
+                height: 100dvh; 
                 padding: 5px; 
-                /* 固定ボタンのスペースは、flexコンテナの高さ計算に任せる */
-                padding-bottom: 0; 
+                padding-bottom: 70px; /* 固定ボタン用のスペース確保(少し広めに) */
                 gap: 5px;
+                overflow: hidden;
             }
-            /* Explicitly define order for mobile */
-            .tetris-panel { order: 1; padding: 0; } 
             
-            /* デスクトップ要素をモバイルで完全に非表示にする */
+            .tetris-panel { order: 1; padding: 0; } 
             .desktop-only { display: none !important; }
             #battle-hud { display: none !important; } 
             .log-panel { display: none !important; } 
-            
             .mobile-controls-fixed { order: 2; display: flex; }
 
-            /* Tetris Board sizing: maximize width while maintaining aspect ratio */
+            /* Tetris Board sizing: Fit within screen height */
             .tetris-panel {
-                 /* flex-grow: 1 で残りのスペースを占有し、ボードを最大化 */
                 flex-grow: 1;
-                /* ボードの高さを確保するための最小値 */
-                min-height: 200px; 
+                min-height: 0; /* Allow shrinking */
                 display: flex;
                 align-items: center; 
                 justify-content: center;
-                /* flexアイテムのため、height: calc(...) は不要 */
-            }
-            #tetris-board { 
-                width: 95vw; 
-                max-width: 300px; 
-                /* 高さを設定しないことで、padding-bottomによるアスペクト比固定を有効にする */
-                height: 0; 
-                padding-bottom: 200%; 
-                position: relative;
-                margin: auto; 
-                display: block; 
+                overflow: hidden;
             }
             
+            #tetris-board { 
+                /* 修正: モバイルでのサイズ計算を厳密化
+                   アスペクト比は 10(幅):20(高さ) = 1:2
+                   幅W = 高さH / 2
+                   
+                   条件1: 幅は画面幅(95vw)を超えない
+                   条件2: 高さは画面高さからUI分(約160px)を引いた値を超えない
+                          つまり 幅W <= (100dvh - 160px) / 2
+                   
+                   これらを min() で比較して小さい方を採用し、高さをその2倍にする
+                */
+                width: min(90vw, calc((100dvh - 160px) * 0.5));
+                height: calc(min(90vw, calc((100dvh - 160px) * 0.5)) * 2);
+                
+                aspect-ratio: 10 / 20; /* 念のため維持 */
+                
+                padding-bottom: 0;
+                margin: auto; 
+                display: grid; 
+                grid-template-rows: repeat(20, 1fr);
+                grid-template-columns: repeat(10, 1fr);
+            }
+            
+            /* グリッドセルは相対配置で埋める */
             .cell {
-                position: absolute;
-                width: 10%; 
-                height: 5%; 
+                position: static !important; /* JSのabsolute指定を無効化 */
+                width: 100% !important;
+                height: 100% !important;
                 border: 1px solid rgba(255,255,255,0.1);
                 box-sizing: border-box;
             }
@@ -120,8 +127,9 @@
                 grid-template-columns: 1fr 1fr; 
                 gap: 10px;
                 padding: 8px 10px;
-                background: rgba(15, 52, 96, 0.8); /* Semi-transparent background */
+                background: rgba(15, 52, 96, 0.85);
                 border-radius: 8px 8px 0 0;
+                pointer-events: none; /* タッチ操作を阻害しないように */
             }
             #mobile-hud-overlay .bar-container { height: 6px; margin-bottom: 4px; }
             #mobile-hud-overlay .player-name, #mobile-hud-overlay .enemy-name {
@@ -146,9 +154,17 @@
              align-items: center;
              justify-content: flex-start; 
              order: 1; 
+             background: rgba(0,0,0,0.3); /* パネル背景を少し薄く */
+             border: none; /* ボーダー削除してスッキリさせる */
         }
         @media (min-width: 769px) {
-            .tetris-panel { order: 2; height: 100%; justify-content: center; } 
+            .tetris-panel { 
+                order: 2; 
+                height: 100%; 
+                justify-content: center;
+                background: var(--ui-bg);
+                border: 2px solid #4a5568;
+            } 
             .game-container { padding: 10px; }
             #tetris-board { 
                 width: 250px; 
@@ -253,16 +269,17 @@
             bottom: 0;
             left: 0;
             width: 100%;
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(0, 0, 0, 0.8);
             border-top: 2px solid #e94560;
             justify-content: center;
             gap: 20px;
             padding: 5px 10px; 
-            height: 50px; 
+            height: 60px; /* Increased height slightly */
             z-index: 90;
+            padding-bottom: max(5px, env(safe-area-inset-bottom)); /* Safe area for iPhone X+ */
         }
         @media (max-width: 768px) {
-            .mobile-controls-fixed { display: flex; }
+            .mobile-controls-fixed { display: flex; align-items: center; }
             
             /* Combined HUD Styling */
             #battle-hud { display: none !important; } /* HIDDEN in flow */
@@ -272,14 +289,14 @@
             border: 2px solid rgba(255,255,255,0.4);
             border-radius: 12px;
             color: white;
-            font-size: 14px; 
+            font-size: 16px; 
             font-weight: bold;
             display: flex;
             align-items: center;
             justify-content: center;
             user-select: none;
-            padding: 2px 10px; 
-            min-width: 80px;
+            padding: 8px 20px; 
+            min-width: 100px;
             box-shadow: 0 4px 0 rgba(0,0,0,0.5);
         }
         .ctrl-btn:active { 
@@ -909,22 +926,13 @@
     function initBoard() {
         board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
         boardEl.innerHTML = '';
-        const isMobile = window.innerWidth <= 768;
-
+        
+        // モバイルもグリッドレイアウトに統一されたため、個別のスタイル設定は不要
         for (let r = 0; r < ROWS; r++) {
             for (let c = 0; c < COLS; c++) {
                 const cell = document.createElement('div');
                 cell.classList.add('cell');
                 cell.id = `cell-${r}-${c}`;
-                
-                if (isMobile) {
-                    cell.style.top = `${r * 5}%`;
-                    cell.style.left = `${c * 10}%`;
-                } else {
-                    cell.style.top = ''; 
-                    cell.style.left = '';
-                }
-
                 boardEl.appendChild(cell);
             }
         }
@@ -1395,22 +1403,15 @@
     }
 
     function draw() {
-        const isMobile = window.innerWidth <= 768;
+        // モバイル判定は不要になり、CSS Gridが自動処理する
         
         for (let y = 0; y < ROWS; y++) {
             for (let c = 0; c < COLS; c++) {
                 const cell = document.getElementById(`cell-${y}-${c}`);
                 const val = board[y][c];
                 
+                // クラスをリセットして基本クラスのみにする
                 cell.className = 'cell'; 
-
-                if (isMobile) {
-                    cell.style.top = `${y * 5}%`;
-                    cell.style.left = `${c * 10}%`;
-                } else {
-                    cell.style.top = ''; 
-                    cell.style.left = '';
-                }
 
                 if (val !== 0) {
                     cell.classList.add(PIECES[val].class);
