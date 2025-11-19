@@ -25,7 +25,7 @@ TetrisQuestをプレイするには、お使いのウェブブラウザで `inde
 
 ```bash
 # リポジトリをクローンする (任意)
-git clone https://github.com/your-username/TetrisQuest.git
+git clone https://github.com/dma-cmyk/TetrisQuest.git
 cd TetrisQuest
 # ブラウザで index.html を開く
 ```
