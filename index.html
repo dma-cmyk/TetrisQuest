@@ -25,7 +25,7 @@
             -webkit-user-select: none;
             padding: 0;
             margin: 0;
-            height: 100%; /* 100vhから変更 */
+            height: 100%; 
         }
 
         /* Custom Scrollbar for Log */
@@ -64,14 +64,19 @@
             }
             /* Explicitly define order for mobile */
             .tetris-panel { order: 1; padding: 0; } 
-            #battle-hud { display: none; } /* HIDDEN in the flow, will be ABOSLUTELY positioned */
-            .log-panel { display: none; } 
+            
+            /* 【重要修正】デスクトップ要素をモバイルで完全に非表示にする */
+            .desktop-only { display: none !important; }
+            #battle-hud { display: none !important; } 
+            .log-panel { display: none !important; } 
+            
             .mobile-controls-fixed { order: 2; display: flex; }
 
             /* Tetris Board sizing: maximize width while maintaining aspect ratio */
             .tetris-panel {
                  /* Ensure panel takes up max height possible to push controls to the bottom */
-                height: calc(100vh - 55px - 10px); /* viewport height - controls height - padding */
+                /* 100vh - スキルボタン (50px) - 上下padding (10px) = 残りのスペース */
+                height: calc(100vh - 55px - 10px); 
                 display: flex;
                 align-items: center; /* Center board vertically within the panel */
                 justify-content: center;
@@ -94,8 +99,6 @@
                 box-sizing: border-box;
             }
             
-            .desktop-only { display: none; }
-
             /* Overlay HUD Styling */
             #mobile-hud-overlay {
                 display: grid; 
@@ -252,7 +255,7 @@
             .mobile-controls-fixed { display: flex; }
             
             /* Combined HUD Styling */
-            #battle-hud { display: none; } /* HIDDEN in flow */
+            #battle-hud { display: none !important; } /* HIDDEN in flow */
         }
         .ctrl-btn {
             background: rgba(255,255,255,0.15);
@@ -661,7 +664,7 @@
 
     function toggleSound() {
         // AudioSys.toggle() の呼び出しは問題なし。toggle()メソッド内のthis参照を修正する必要があるため、
-        // toggleSound()はそのままにして、AudioSys.toggle()を修正します。
+        // AudioSys.toggle()をAudioSysのコンテキストで実行するように修正
         AudioSys.toggle.call(AudioSys);
     }
 
