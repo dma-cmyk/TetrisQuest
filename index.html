@@ -20,12 +20,12 @@
             background-color: var(--bg-color);
             color: white;
             touch-action: none; /* Prevent pull-to-refresh on mobile */
-            overflow-x: hidden; /* Avoid horizontal scroll */
+            overflow: hidden; /* **スクロールを完全に禁止** */
             user-select: none;
             -webkit-user-select: none;
             padding: 0;
             margin: 0;
-            height: 100vh;
+            height: 100%; /* 100vhから変更 */
         }
 
         /* Custom Scrollbar for Log */
@@ -46,7 +46,7 @@
             gap: 10px;
             max-width: 1000px;
             margin: 0 auto;
-            height: 100vh;
+            height: 100vh; /* ビューポートの高さを使用 */
             padding: 10px;
             position: relative;
         }
@@ -660,7 +660,9 @@
     };
 
     function toggleSound() {
-        AudioSys.toggle();
+        // AudioSys.toggle() の呼び出しは問題なし。toggle()メソッド内のthis参照を修正する必要があるため、
+        // toggleSound()はそのままにして、AudioSys.toggle()を修正します。
+        AudioSys.toggle.call(AudioSys);
     }
 
     // --- Game Data Structure ---
@@ -1532,7 +1534,7 @@
     // --- Global Functions for HTML/Button Access ---
     window.startGame = startGame;
     window.castSkill = castSkill;
-    window.toggleSound = AudioSys.toggle;
+    window.toggleSound = toggleSound;
     window.showRanking = showRanking;
     window.hideRanking = hideRanking;
 
